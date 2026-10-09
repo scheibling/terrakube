@@ -313,4 +313,25 @@ class AwsTerraformStateImplTest {
         assertEquals("http://api/output", result);
         verify(s3Client, times(1)).putObject(any(PutObjectRequest.class), any(RequestBody.class));
     }
+
+    @Test
+    void testMaskBackendSecrets() {
+        String backendHcl = "terraform {\n"
+                + "  backend \"s3\" {\n"
+                + "    bucket     = \"test-bucket\"\n"
+                + "    region     = \"SOL1\"\n"
+                + "    access_key = \"AKIAEXAMPLE\"\n"
+                + "    secret_key = \"super/secret+key\"\n"
+                + "  }\n"
+                + "}\n";
+
+        String masked = AwsTerraformStateImpl.maskBackendSecrets(backendHcl);
+
+        assertTrue(masked.contains("access_key = \"****\""));
+        assertTrue(masked.contains("secret_key = \"****\""));
+        assertTrue(masked.contains("bucket     = \"test-bucket\""));
+        assertTrue(masked.contains("region     = \"SOL1\""));
+        assertFalse(masked.contains("AKIAEXAMPLE"));
+        assertFalse(masked.contains("super/secret+key"));
+    }
 }

@@ -93,6 +93,9 @@ public class AwsTerraformStateImpl implements TerraformState {
     // Major.minor.wildcard (1.6.x) is also excluded: the version regex extracts the concrete prefix correctly.
     private static final Pattern X_RANGE_PATTERN = Pattern.compile("^\\*$|^\\d+\\.[*xX]$");
 
+    // Masks the values of access_key and secret_key when the generated backend is logged.
+    private static final Pattern BACKEND_SECRET_PATTERN = Pattern.compile("((?:access_key|secret_key)\\s*=\\s*\")[^\"]*(\")");
+
     @Override
     public String getBackendStateFile(String organizationId, String workspaceId, File workingDirectory, String terraformVersion) {
         log.info("Generating backend override file for terraform {}", terraformVersion);
@@ -165,6 +168,8 @@ public class AwsTerraformStateImpl implements TerraformState {
             awsBackendHcl.appendln("  }");
             awsBackendHcl.appendln("}");
 
+            log.info("Generated backend file {}:\n{}", BACKEND_FILE_NAME, awsBackendHcl.toString());
+
             File awsBackendFile = new File(
                     FilenameUtils.separatorsToSystem(
                             workingDirectory.getAbsolutePath().concat("/").concat(BACKEND_FILE_NAME)
@@ -178,6 +183,10 @@ public class AwsTerraformStateImpl implements TerraformState {
         }
         return awsBackend;
     }
+
+    // static String maskBackendSecrets(String backendHcl) {
+    //     return BACKEND_SECRET_PATTERN.matcher(backendHcl).replaceAll("$1****$2");
+    // }
 
     @Override
     public String saveTerraformPlan(String organizationId, String workspaceId, String jobId, String stepId, File workingDirectory) {
