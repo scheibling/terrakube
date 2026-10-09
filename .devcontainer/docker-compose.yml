@@ -34,6 +34,7 @@ x-api: &api_env
   AwsStorageSecretKey: $TK_OUTPUT_SECRET_KEY
   AwsStorageBucketName: $TK_OUTPUT_BUCKET_NAME
   AwsStorageRegion: $TK_OUTPUT_STORAGE_REGION
+  AwsStorageEndpointRegion: $TK_OUTPUT_STORAGE_REGION
   AwsEndpoint: $TK_OUTPUT_ENDPOINT
   TerrakubeUiURL: https://terrakube.${DOMAIN}
   spring_profiles_active: demo
@@ -54,12 +55,15 @@ x-executor: &executor_env
   AwsTerraformStateSecretKey: $TK_OUTPUT_SECRET_KEY
   AwsTerraformStateBucketName: $TK_OUTPUT_BUCKET_NAME
   AwsTerraformStateRegion: ${TK_OUTPUT_BUCKET_REGION}
+  AwsTerraformStateEndpointRegion: ${TK_OUTPUT_BUCKET_REGION}
   AwsEndpoint: $TK_OUTPUT_ENDPOINT
+  AwsEndpointRegion: $TK_OUTPUT_STORAGE_REGION
   TerraformOutputType: AwsTerraformOutputImpl
   AwsTerraformOutputAccessKey: $TK_OUTPUT_ACCESS_KEY
   AwsTerraformOutputSecretKey: $TK_OUTPUT_SECRET_KEY
   AwsTerraformOutputBucketName: $TK_OUTPUT_BUCKET_NAME
   AwsTerraformOutputRegion: ${TK_OUTPUT_BUCKET_REGION}
+  AwsTerraformOutputEndpointRegion: ${TK_OUTPUT_BUCKET_REGION}
   AzBuilderApiUrl: https://terrakube-api.${DOMAIN}
   ExecutorFlagBatch: "false"
   ExecutorFlagDisableAcknowledge: "false"
@@ -87,6 +91,7 @@ x-registry: &registry_env
   AwsStorageSecretKey: $TK_OUTPUT_SECRET_KEY
   AwsStorageBucketName: $TK_OUTPUT_BUCKET_NAME
   AwsStorageRegion: $TK_OUTPUT_STORAGE_REGION
+  AwsEndpointRegion: $TK_OUTPUT_STORAGE_REGION
   AwsEndpoint: $TK_OUTPUT_ENDPOINT
   AppClientId: example-app
   AppIssuerUri: https://terrakube-dex.${DOMAIN}/dex
@@ -250,23 +255,33 @@ services:
       - ./tls/rootCA.pem:/var/run/terrakube-mkcert/rootCA.pem:ro
     networks:
       - terrakube-network
-  minio:
-    image: pgsty/silo:${TK_MINIO_VERSION}
-    command: server /data --console-address ":9001"
-    environment: *minio_env
+
+  garage:
+    image: dxflrs/garage:v2.4.1
     volumes:
-      - 'minio_data:/data'
-    networks:
-      terrakube-network:
-        aliases:
-          - terrakube-minio
-  minio-init:
-    image: pgsty/silo:${TK_MINIO_VERSION}
-    depends_on:
-      - minio
-    entrypoint: ["/bin/sh","-c","until /usr/bin/mc alias set tk http://minio:9000 ${TK_OUTPUT_ACCESS_KEY} ${TK_OUTPUT_SECRET_KEY}; do echo 'waiting for minio'; sleep 2; done; /usr/bin/mc mb --ignore-existing tk/${TK_OUTPUT_BUCKET_NAME}; exit 0;"]
-    networks:
-      - terrakube-network
+      - ./garage.toml:/etc/garage.toml
+    environment:
+      GARAGE_DEFAULT_ACCESS_KEY: ${TK_OUTPUT_ACCESS_KEY}
+      GARAGE_DEFAULT_SECRET_KEY: ${TK_OUTPUT_SECRET_KEY}
+      GARAGE_DEFAULT_BUCKET: ${TK_OUTPUT_BUCKET_NAME}
+
+  # minio:
+  #   image: pgsty/silo:${TK_MINIO_VERSION}
+  #   command: server /data --console-address ":9001"
+  #   environment: *minio_env
+  #   volumes:
+  #     - 'minio_data:/data'
+  #   networks:
+  #     terrakube-network:
+  #       aliases:
+  #         - terrakube-minio
+  # minio-init:
+  #   image: pgsty/silo:${TK_MINIO_VERSION}
+  #   depends_on:
+  #     - minio
+  #   entrypoint: ["/bin/sh","-c","until /usr/bin/mc alias set tk http://minio:9000 ${TK_OUTPUT_ACCESS_KEY} ${TK_OUTPUT_SECRET_KEY}; do echo 'waiting for minio'; sleep 2; done; /usr/bin/mc mb --ignore-existing tk/${TK_OUTPUT_BUCKET_NAME}; exit 0;"]
+  #   networks:
+  #     - terrakube-network
   redis-service:
     image: docker.io/valkey/valkey:${TK_REDIS_VERSION}
     command:
@@ -308,7 +323,6 @@ services:
 #    networks:
 #      - terrakube-network
 volumes:
-  minio_data:
   redis_data:
   maven_data:
   postgresql_data:
