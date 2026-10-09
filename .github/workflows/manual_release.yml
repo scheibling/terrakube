@@ -167,11 +167,18 @@ jobs:
 
       - name: Update POM version
         if: matrix.type != 'ui'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: mvn versions:set-property -Dproperty=revision -DnewVersion=${VERSION} -DgenerateBackupPoms=false
 
       - name: Build component image with Maven
         if: matrix.type == 'maven' || matrix.type == 'executor'
-        run: mvn -pl "${{ matrix.module }}" spring-boot:build-image -B --file pom.xml -Dmaven.test.skip=true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # -U: the cached ~/.m2 could hold an older terraform-spring-boot snapshot
+          mvn -B -U -pl executor dependency:tree
+          mvn -pl "${{ matrix.module }}" spring-boot:build-image -B -U --file pom.xml -Dmaven.test.skip=true
 
       - name: Tag and push component image
         if: matrix.type == 'maven'
@@ -184,6 +191,8 @@ jobs:
 
       - name: Tag and push Executor image
         if: matrix.type == 'executor'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           IMAGE_ID="$(docker images executor:${VERSION} -q)"
           docker run --user="root" --entrypoint launcher "${IMAGE_ID}" "apt-get update && apt-get install git jq curl -y"
@@ -195,45 +204,4 @@ jobs:
           docker push ${REGISTRY}/${OWNER_LC}/${{ matrix.image_name }}:${VERSION}
           docker push ${REGISTRY}/${OWNER_LC}/${{ matrix.image_name }}:latest
 
-  create-release:
-    needs:
-      - prepare-release
-      - build-and-push-images
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    env:
-      VERSION: ${{ needs.prepare-release.outputs.version }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - name: Create or update GitHub release
-        run: |
-          set -euo pipefail
-
-          TAG="v${VERSION}"
-          NOTES_FILE="${RUNNER_TEMP}/release-notes.md"
-          METADATA_FILE="${RUNNER_TEMP}/release-metadata.json"
-
-          gh api \
-            --method POST \
-            -H "Accept: application/vnd.github+json" \
-            "/repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
-            -f tag_name="${TAG}" \
-            -f target_commitish="${GITHUB_SHA}" \
-            > "${METADATA_FILE}"
-
-          RELEASE_TITLE="$(jq -r '.name // empty' "${METADATA_FILE}")"
-          jq -r '.body // empty' "${METADATA_FILE}" > "${NOTES_FILE}"
-
-          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release edit "${TAG}" \
-              --repo "${GITHUB_REPOSITORY}" \
-              --title "${RELEASE_TITLE:-${TAG}}" \
-              --notes-file "${NOTES_FILE}"
-          else
-            gh release create "${TAG}" \
-              --repo "${GITHUB_REPOSITORY}" \
-              --target "${GITHUB_SHA}" \
-              --title "${RELEASE_TITLE:-${TAG}}" \
-              --notes-file "${NOTES_FILE}"
-          fi
+  

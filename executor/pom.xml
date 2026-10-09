@@ -18,7 +18,7 @@
 		<azure.version>6.5.0</azure.version>
 		<msal4j.version>1.26.0</msal4j.version>
 		<commons-text.version>1.15.0</commons-text.version>
-		<terraform-spring-boot-starter.version>1.7.0</terraform-spring-boot-starter.version>
+		<terraform-spring-boot-starter.version>1.7.1-binary-cache-SNAPSHOT</terraform-spring-boot-starter.version>
 		<terrakube-client-starter.version>1.10.0</terrakube-client-starter.version>
 		<commons-io.version>2.22.0</commons-io.version>
 		<commons-codec>1.22.1</commons-codec>
@@ -42,6 +42,14 @@
 		<buildpack.java>paketobuildpacks/java:22.4.0</buildpack.java>
 		<buildpack.telemetry>paketobuildpacks/opentelemetry:2.29.0</buildpack.telemetry>
 	</properties>
+	<repositories>
+		<!-- terraform-spring-boot built from https://github.com/scheibling/terraform-spring-boot.
+		     GitHub Packages needs a token to download, configured as server "github" in settings.xml. -->
+		<repository>
+			<id>github</id>
+			<url>https://maven.pkg.github.com/scheibling/terraform-spring-boot</url>
+		</repository>
+	</repositories>
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
